@@ -29,6 +29,7 @@ func main() {
 	if err != nil {
 		fmt.Println("Failed connecting to database")
 		fmt.Println(err.Error())
+		return
 	}
 	db.AutoMigrate(&models.User{}, &models.Permission{}, &models.Group{}, &models.Post{})
 
