@@ -18,7 +18,6 @@ const JwtTokenContextKey JwtTokenContextKeyType = "JWT_TOKEN_KEY"
 
 func JwtAuthCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check if bearer token is there
 		authorization := r.Header.Get("Authorization")
 
 		if authorization == "" {
