@@ -1,10 +1,11 @@
 package main
 
 import (
+	"api-backend/sample/app/application"
+	"api-backend/sample/app/application/env"
 	"api-backend/sample/app/models"
 	"api-backend/sample/handler"
 	"fmt"
-	"os"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
@@ -14,15 +15,13 @@ import (
 func main() {
 	godotenv.Load()
 
-	mysqlUser := os.Getenv("MYSQL_USER")
-	mysqlUserPassword := os.Getenv("MYSQL_PASSWORD")
-	mysqlDatabase := os.Getenv("MYSQL_DATABASE")
-	mysqlServerIp := os.Getenv("MYSQL_SERVER_IP")
-	mysqlPort := os.Getenv("MYSQL_PORT")
-
 	dsn := fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s",
-		mysqlUser, mysqlUserPassword, mysqlServerIp, mysqlPort, mysqlDatabase,
+		env.MysqlUser.GetValue(),
+		env.MysqlPassword.GetValue(),
+		env.MysqlServerIp.GetValue(),
+		env.MysqlPort.GetValue(),
+		env.MysqlDatabase.GetValue(),
 	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
@@ -31,7 +30,8 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	db.AutoMigrate(&models.User{}, &models.Permission{}, &models.Group{}, &models.Post{})
+	application.DB = db
+	application.DB.AutoMigrate(&models.User{}, &models.Permission{}, &models.Group{}, &models.Post{})
 
 	handler.HandleRequest()
 }
