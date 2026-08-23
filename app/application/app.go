@@ -1,12 +1,22 @@
 package application
 
 import (
-	"api-backend/sample/app/service/auth"
+	"log/slog"
 
 	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
 )
 
-type App struct {
-	router chi.Router
-	auth   *auth.Auth
+type ApiHandler struct {
+	Mux *chi.Mux
+	Logger *slog.Logger
+	DB *gorm.DB
+}
+
+func NewApiHandler(mux *chi.Mux, logger *slog.Logger, db *gorm.DB) *ApiHandler {
+	return &ApiHandler{
+		Mux: mux,
+		Logger: logger,
+		DB: db,
+	}
 }
