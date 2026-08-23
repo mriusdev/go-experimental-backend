@@ -4,11 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
-	"api-backend/sample/app/application"
+	// "api-backend/sample/app/application"
 	"api-backend/sample/app/application/env"
+	httperrors "api-backend/sample/app/application/http_errors"
+	"api-backend/sample/app/application/logs_errors"
 	"api-backend/sample/app/controller/dto"
 	"api-backend/sample/app/controller/middleware"
 	"api-backend/sample/app/models"
@@ -16,6 +19,7 @@ import (
 	app_http "api-backend/sample/app/service/http"
 
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 type AuthResponse struct {
@@ -24,14 +28,31 @@ type AuthResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func Register(rw http.ResponseWriter, r *http.Request) {
+type AuthController struct {
+	Logger *slog.Logger
+	DB *gorm.DB
+}
+
+func NewAuthController(logger *slog.Logger, db *gorm.DB) *AuthController {
+	return &AuthController{
+		Logger: logger,
+	}
+}
+
+func (a *AuthController) Register(rw http.ResponseWriter, r *http.Request) {
 	var registerRequest dto.AuthUser
 
 	err := json.NewDecoder(r.Body).Decode(&registerRequest)
 
 	if err != nil {
-		fmt.Fprint(rw, "error occured")
-		fmt.Fprint(rw, err.Error())
+		app_http.SetJsonResponse(
+			rw,
+			dto.ErrorResponse{
+				Error: httperrors.API_INVALID_REQUEST_JSON,
+			},
+		)
+
+		return
 	}
 
 	existingUser := models.User{}
@@ -41,18 +62,18 @@ func Register(rw http.ResponseWriter, r *http.Request) {
 		"SELECT EXISTS(SELECT name FROM %s WHERE name = @name) AS user_exists",
 		models.UserTable,
 	)
-	application.DB.Raw(
+	a.DB.Raw(
 		existsQuery,
 		sql.Named("name", registerRequest.Name),
 	).Scan(&userExists)
 
-	application.DB.Where("name = ?", registerRequest.Name).First(&existingUser)
+	a.DB.Where("name = ?", registerRequest.Name).First(&existingUser)
 
 	if userExists {
 		app_http.SetJsonResponse(
 			rw,
 			dto.ErrorResponse{
-				Error: "Incorrect details",
+				Error: httperrors.AUTH_INVALID_DETAILS,
 			},
 		)
 
@@ -74,14 +95,26 @@ func Register(rw http.ResponseWriter, r *http.Request) {
 		[]byte(env.JwtSecret.GetValue()),
 	)
 
+	if accessTokenError != nil {
+		a.Logger.Error(logs_errors.AUTH_CONTROLLER_ERROR, "Access token generation error", accessTokenError)
+	}
+	if refreshTokenError != nil {
+		a.Logger.Error(logs_errors.AUTH_CONTROLLER_ERROR, "Refresh token generation error", refreshTokenError)
+	}
 	if accessTokenError != nil || refreshTokenError != nil {
-		// todo: logging
-		fmt.Fprint(rw, "something wrong happened", err.Error())
+		app_http.SetJsonResponse(
+			rw,
+			dto.ErrorResponse{
+				Error: httperrors.API_GENERIC,
+			},
+		)
+
+		return
 	}
 
 	user := models.User{Name: registerRequest.Name, Password: hashedPassword, AccessToken: accessToken, RefreshToken: refreshToken}
 
-	application.DB.Create(&user)
+	a.DB.Create(&user)
 
 	app_http.SetJsonResponse(
 		rw,
@@ -93,7 +126,7 @@ func Register(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func Login(rw http.ResponseWriter, r *http.Request) {
+func (a *AuthController) Login(rw http.ResponseWriter, r *http.Request) {
 	var loginRequest dto.AuthUser
 	err := json.NewDecoder(r.Body).Decode(&loginRequest)
 	if err != nil {
@@ -102,7 +135,7 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	userErr := application.DB.Where("name = ?", loginRequest.Name).First(&user).Error
+	userErr := a.DB.Where("name = ?", loginRequest.Name).First(&user).Error
 	if userErr != nil {
 		app_http.SetJsonResponse(
 			rw,
@@ -161,7 +194,7 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	application.DB.Model(&user).Updates(models.User{AccessToken: accessToken, RefreshToken: refreshToken})
+	a.DB.Model(&user).Updates(models.User{AccessToken: accessToken, RefreshToken: refreshToken})
 
 	app_http.SetJsonResponse(
 		rw,
@@ -173,13 +206,13 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func Logout(rw http.ResponseWriter, r *http.Request) {
+func (a *AuthController) Logout(rw http.ResponseWriter, r *http.Request) {
 	// token := r.Context().Value(middleware.JwtTokenContextKey).(*jwt.Token)
 	// fmt.Printf("context value: %+v\n", token)
 	fmt.Fprintln(rw, "logging out...")
 }
 
-func RefreshToken(rw http.ResponseWriter, r *http.Request) {
+func (a *AuthController) RefreshToken(rw http.ResponseWriter, r *http.Request) {
 	token := r.Context().Value(middleware.JwtTokenContextKey).(*jwt.Token)
 	fmt.Printf("context value: %+v\n", token)
 	fmt.Fprintln(rw, "logging out...")

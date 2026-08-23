@@ -1,28 +1,30 @@
 package controller
 
 import (
+	"api-backend/sample/app/application"
 	"api-backend/sample/app/controller/middleware"
 
 	"github.com/go-chi/chi/v5"
 )
 
-func GetRouter() chi.Router {
-	router := chi.NewRouter()
-	router.Route("/register", func(r chi.Router) {
-		r.Post("/", Register)
+func AddRoutes(apiHandler *application.ApiHandler) chi.Router {
+	mux := apiHandler.Mux
+	authController := NewAuthController(apiHandler.Logger, apiHandler.DB)
+	mux.Route("/register", func(r chi.Router) {
+		r.Post("/", authController.Register)
 	})
-	router.Route("/login", func(r chi.Router) {
-		r.Post("/", Login)
+	mux.Route("/login", func(r chi.Router) {
+		r.Post("/", authController.Login)
 	})
 
-	router.Group(func(r chi.Router) {
+	mux.Group(func(r chi.Router) {
 		r.Use(middleware.JwtAuthCheck)
 
 		r.Route("/logout", func(r chi.Router) {
-			r.Post("/", Logout)
+			r.Post("/", authController.Logout)
 		})
 		r.Route("/refresh", func(r chi.Router) {
-			r.Post("/", RefreshToken)
+			r.Post("/", authController.RefreshToken)
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", GetUsers)
@@ -33,9 +35,9 @@ func GetRouter() chi.Router {
 		})
 	})
 
-	router.Route("/info", func(r chi.Router) {
+	mux.Route("/info", func(r chi.Router) {
 		r.Get("/", GetInfo)
 	})
 
-	return router
+	return mux
 }
