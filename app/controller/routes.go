@@ -23,9 +23,6 @@ func AddRoutes(apiHandler *application.ApiHandler) chi.Router {
 		r.Route("/logout", func(r chi.Router) {
 			r.Post("/", authController.Logout)
 		})
-		r.Route("/refresh", func(r chi.Router) {
-			r.Post("/", authController.RefreshToken)
-		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", GetUsers)
 			r.Post("/", CreateUser)

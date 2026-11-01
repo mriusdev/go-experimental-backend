@@ -1,3 +1,3 @@
-package logs_errors
+package logserrors
 
 const AUTH_CONTROLLER_ERROR string = "AUTH-CONTROLLER"
